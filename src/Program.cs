@@ -45,7 +45,7 @@ static class Program
 
         // extract admin info from app settings
         var Admin_info = Builder.Configuration.GetSection("AdminInfo").Get<Room_Creation_Info>();
- 
+
         var Web_app = Builder.Build();
         Web_app.UseRateLimiter();
 
@@ -69,7 +69,7 @@ static class Program
 
             return Results.Ok();
         });
-        
+
         // give file to client
         Web_app.MapPost(End_Point.Server_Get_File, (Room_Joining_Info Info) =>
         {
@@ -86,9 +86,19 @@ static class Program
 
     private static void Run_Client()
     {
-        Console.WriteLine("Give folder path where you want to use remote files, without double quotes");
+        Console.WriteLine("Give folder path where you want to use remote files");
         var Remote_folder = Console.ReadLine();
-        
+
+        // remove "" or '
+        if (Remove_Quotation(Remote_folder, out var Temp_folder_path))
+        Remote_folder = Temp_folder_path;
+
+        if (!Directory.Exists(Remote_folder))
+        {
+            Console.WriteLine("Exiting program, folder provided does not exists");
+            return;
+        }
+
         if (Remote_folder[Remote_folder.Length - 1] != '\\')
             Remote_folder += '\\';
 
@@ -97,7 +107,7 @@ static class Program
         Client_Funcs.Init();
 
         const string Send_Cmd = "send", Get_Cmd = "get", Create_Room_Cmd = "create room"
-        ,Room_Credentials_Cmd = "join room", Change_Folder = "change folder";
+        , Room_Credentials_Cmd = "join room", Change_Folder = "change folder";
 
         bool Room_joined = false;
         Room_Joining_Info Room_join_info = default;
@@ -149,7 +159,7 @@ static class Program
 
                     Client_Funcs.Send_File(Room_join_info);
                     break;
-                
+
                 case Get_Cmd:
 
                     Client_Funcs.Get_File(Room_join_info);
@@ -194,9 +204,21 @@ static class Program
                     Console.WriteLine("Give folder path, without double quotes");
                     var New_folder = Console.ReadLine();
 
+                    // validity
                     if (string.IsNullOrEmpty(New_folder))
                     {
                         Console.WriteLine("cannot take empty string as path");
+                        break;
+                    }
+
+                    // make it usable
+                    if (Remove_Quotation(Remote_folder, out Temp_folder_path))
+                        Remote_folder = Temp_folder_path;
+                    
+                    // just check and skip do not create new folders
+                    if (!Directory.Exists(Remote_folder))
+                    {
+                        Console.WriteLine("Folder change canceled, folder provided does not exists");
                         break;
                     }
 
@@ -209,7 +231,7 @@ static class Program
             }
         }
     }
-    
+
     private static string Error_Msg(Result_State X)
     {
         return X switch
@@ -220,5 +242,14 @@ static class Program
             Result_State.File_Too_Big => "File size too big",
             _ => "Error occured"
         };
+    }
+    private static bool Remove_Quotation(string X, out string Result)
+    {
+        Result = "";
+
+        if (X.Length < 3) return false;
+
+        Result = X.Substring(1, X.Length - 1);
+        return true; ;
     }
 }

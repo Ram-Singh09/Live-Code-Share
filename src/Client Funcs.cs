@@ -72,10 +72,18 @@ static class Client_Funcs
         // type of msg
         using var Req = new HttpRequestMessage(HttpMethod.Post, End_Point.Client_Upload_File);
 
+        // no sending of empty array
+        var File_bytes = File.ReadAllBytes(Send_file_path);
+        if (File_bytes.Length == 0)
+        {
+            Console.WriteLine("Send file is empty, nothing to send");
+            return;
+        }
+
         // add json of data req by this func on server 
         Req.Content = JsonContent.Create
         (
-            new Upload_File_Data(Info, File.ReadAllBytes(Send_file_path)),
+            new Upload_File_Data(Info, File_bytes),
             options: Options
         );
 

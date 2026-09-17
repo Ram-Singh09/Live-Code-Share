@@ -247,7 +247,7 @@ static class Program
     {
         Result = "";
 
-        if (X.Length < 3) return false;
+        if (X.Length < 3 || X[0] == '"' && X[X.Length -1] == '"') return false;
 
         Result = X.Substring(1, X.Length - 2);
         return true; ;

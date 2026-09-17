@@ -249,7 +249,7 @@ static class Program
 
         if (X.Length < 3) return false;
 
-        Result = X.Substring(1, X.Length - 1);
+        Result = X.Substring(1, X.Length - 2);
         return true; ;
     }
 }

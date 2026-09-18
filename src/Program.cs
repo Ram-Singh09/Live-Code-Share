@@ -90,8 +90,7 @@ static class Program
         var Remote_folder = Console.ReadLine();
 
         // remove "" or '
-        if (Remove_Quotation(Remote_folder, out var Temp_folder_path))
-        Remote_folder = Temp_folder_path;
+        Remote_folder = Remote_folder.Trim('"');
 
         if (!Directory.Exists(Remote_folder))
         {
@@ -103,7 +102,6 @@ static class Program
             Remote_folder += '\\';
 
         Client_Funcs.Set_Remote_Folder(Remote_folder);
-
         Client_Funcs.Init();
 
         const string Send_Cmd = "send", Get_Cmd = "get", Create_Room_Cmd = "create room"
@@ -212,17 +210,18 @@ static class Program
                     }
 
                     // make it usable
-                    if (Remove_Quotation(Remote_folder, out Temp_folder_path))
-                        Remote_folder = Temp_folder_path;
+                    New_folder = New_folder.Trim(' ', '"');
                     
                     // just check and skip do not create new folders
-                    if (!Directory.Exists(Remote_folder))
+                    if (!Directory.Exists(New_folder))
                     {
                         Console.WriteLine("Folder change canceled, folder provided does not exists");
                         break;
                     }
 
                     Client_Funcs.Set_Remote_Folder(New_folder);
+                    Remote_folder = New_folder;
+
                     break;
 
                 default:
@@ -243,13 +242,5 @@ static class Program
             _ => "Error occured"
         };
     }
-    private static bool Remove_Quotation(string X, out string Result)
-    {
-        Result = "";
 
-        if (X.Length < 3 || X[0] == '"' && X[X.Length -1] == '"') return false;
-
-        Result = X.Substring(1, X.Length - 2);
-        return true; ;
-    }
 }

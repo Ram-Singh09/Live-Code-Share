@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeShare - Realtime Binary & Code Transfer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        .split-container {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 80px);
+        }
+        @media (min-width: 768px) {
+            .split-container {
+                flex-direction: row;
+            }
+        }
+        .resizer {
+            background-color: #374151;
+            cursor: col-resize;
+            width: 8px;
+            user-select: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans min-h-screen flex flex-col">
+
+    <!-- HEADER / NAVIGATION -->
+    <header class="bg-slate-800 border-b border-slate-700 px-6 py-3 flex items-center justify-between shadow-md">
+        <div class="flex items-center space-x-3">
+            <i class="ph ph-code-block text-emerald-400 text-3xl"></i>
+            <h1 class="text-xl font-bold tracking-wide">CodeShare</h1>
+        </div>
+        <div id="roomBadge" class="hidden flex items-center space-x-3 bg-slate-900/80 border border-slate-700 px-4 py-1.5 rounded-lg">
+            <span class="text-xs text-slate-400 uppercase tracking-wider font-semibold">Room:</span>
+            <span id="displayRoomId" class="font-mono text-emerald-400 font-bold">---</span>
+            <span class="text-slate-600">|</span>
+            <span class="text-xs text-slate-400 uppercase tracking-wider font-semibold">Pass:</span>
+            <span id="displayPassword" class="font-mono text-amber-400 font-bold">••••••</span>
+            <button onclick="togglePasswordVisibility()" class="text-slate-400 hover:text-slate-200 text-sm">
+                <i id="passToggleIcon" class="ph ph-eye"></i>
+            </button>
+            <button onclick="copyRoomCredentials()" class="text-slate-400 hover:text-emerald-400 text-sm ml-2">
+                <i class="ph ph-copy"></i>
+            </button>
+            <button onclick="leaveRoom()" class="ml-4 bg-red-600/80 hover:bg-red-500 text-white text-xs px-3 py-1 rounded transition">
+                Leave
+            </button>
+        </div>
+    </header>
+
+    <!-- SCREEN 1: HOME (Create / Join Room) -->
+    <main id="homeScreen" class="flex-1 flex flex-col items-center justify-center p-6">
+        <div class="max-w-md w-full bg-slate-800 border border-slate-700 rounded-xl p-8 shadow-2xl">
+            <h2 class="text-2xl font-bold text-center mb-2">Welcome to CodeShare</h2>
+            <p class="text-slate-400 text-sm text-center mb-6">Create a new temporary workspace or join an existing room with ID & Password.</p>
+
+            <div id="homeErrorMsg" class="hidden mb-4 p-3 bg-red-900/50 border border-red-500 rounded text-red-200 text-sm text-center"></div>
+
+            <!-- Create Room Section -->
+            <button onclick="handleCreateRoom()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 rounded-lg shadow-lg flex items-center justify-center space-x-2 transition mb-6">
+                <i class="ph ph-plus-circle text-xl"></i>
+                <span>Create New Room</span>
+            </button>
+
+            <div class="relative flex py-2 items-center mb-6">
+                <div class="flex-grow border-t border-slate-700"></div>
+                <span class="flex-shrink mx-4 text-slate-500 text-xs uppercase font-semibold">Or Join Room</span>
+                <div class="flex-grow border-t border-slate-700"></div>
+            </div>
+
+            <!-- Join Room Form -->
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Room ID</label>
+                    <input type="number" id="joinRoomId" placeholder="e.g. 1829384" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-slate-100 focus:outline-none focus:border-emerald-500 font-mono">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Password</label>
+                    <input type="number" id="joinPassword" placeholder="e.g. 483920" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-slate-100 focus:outline-none focus:border-emerald-500 font-mono">
+                </div>
+                <button onclick="handleJoinRoom()" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-100 font-semibold py-3 rounded-lg shadow transition flex items-center justify-center space-x-2">
+                    <i class="ph ph-sign-in text-xl"></i>
+                    <span>Join Room</span>
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- SCREEN 2: WORKSPACE (Split Left / Right Views) -->
+    <main id="workspaceScreen" class="hidden flex-1 split-container overflow-hidden">
+        
+        <!-- LEFT PANEL: RECEIVE DATA -->
+        <section id="leftPanel" class="flex-1 flex flex-col p-4 bg-slate-900/60 min-w-[250px]">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-md font-semibold text-slate-300 flex items-center space-x-2">
+                    <i class="ph ph-download-simple text-emerald-400 text-lg"></i>
+                    <span>Received Output</span>
+                </h3>
+                <span id="recvStatus" class="text-xs text-slate-500">Idle</span>
+            </div>
+            
+            <div class="flex-1 bg-slate-950 border border-slate-800 rounded-lg p-4 font-mono text-sm overflow-auto mb-3 relative">
+                <pre id="receivedTextDisplay" class="whitespace-pre-wrap break-all text-slate-300">No data fetched yet. Click "Get / Refresh" below to query the server.</pre>
+                <div id="fileDownloadArea" class="hidden flex flex-col items-center justify-center h-full space-y-3">
+                    <i class="ph ph-file-zip text-5xl text-emerald-400"></i>
+                    <p class="text-slate-400 text-sm">Binary file payload received.</p>
+                    <a id="downloadFileBtn" href="#" download="received_file.bin" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-4 py-2 rounded-lg text-xs flex items-center space-x-2">
+                        <i class="ph ph-download"></i>
+                        <span>Download Binary File</span>
+                    </a>
+                </div>
+            </div>
+
+            <button onclick="handleGetFile()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 rounded-lg shadow flex items-center justify-center space-x-2 transition">
+                <i class="ph ph-arrows-clockwise text-lg"></i>
+                <span>Get / Refresh Data</span>
+            </button>
+        </section>
+
+        <!-- RESIZER BAR -->
+        <div id="dragHandle" class="resizer hidden md:block"></div>
+
+        <!-- RIGHT PANEL: SEND DATA -->
+        <section id="rightPanel" class="flex-1 flex flex-col p-4 bg-slate-900/60 min-w-[250px]">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-md font-semibold text-slate-300 flex items-center space-x-2">
+                    <i class="ph ph-upload-simple text-amber-400 text-lg"></i>
+                    <span>Send Data</span>
+                </h3>
+                <div class="flex space-x-2">
+                    <button id="modeTextBtn" onclick="switchSendMode('text')" class="text-xs px-2.5 py-1 rounded bg-amber-600 text-white font-semibold">Text</button>
+                    <button id="modeFileBtn" onclick="switchSendMode('file')" class="text-xs px-2.5 py-1 rounded bg-slate-800 text-slate-400">File</button>
+                </div>
+            </div>
+
+            <!-- Text Mode Input -->
+            <div id="textInputWrapper" class="flex-1 mb-3">
+                <textarea id="sendTextArea" placeholder="Paste source code or plain text here..." class="w-full h-full bg-slate-950 border border-slate-800 rounded-lg p-4 font-mono text-sm text-slate-200 focus:outline-none focus:border-amber-500 resize-none"></textarea>
+            </div>
+
+            <!-- File Mode Input -->
+            <div id="fileInputWrapper" class="hidden flex-1 bg-slate-950 border border-dashed border-slate-800 rounded-lg p-6 mb-3 flex flex-col items-center justify-center">
+                <i class="ph ph-upload text-4xl text-slate-600 mb-2"></i>
+                <input type="file" id="sendFileInput" class="text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-amber-400 hover:file:bg-slate-700 cursor-pointer">
+            </div>
+
+            <button onclick="handleUploadFile()" class="bg-amber-600 hover:bg-amber-500 text-white font-semibold py-2.5 rounded-lg shadow flex items-center justify-center space-x-2 transition">
+                <i class="ph ph-paper-plane-right text-lg"></i>
+                <span>Upload / Send</span>
+            </button>
+        </section>
+
+    </main>
+
+    <!-- SCRIPT SECTION -->
+    <script>
+        // State tracking
+        let activeRoomInfo = null; // Stores { Room_id: number, Password: number }
+        let sendMode = 'text';
+        let showPasswordRaw = false;
+
+        // Conversion Helpers for byte arrays <-> Base64
+        function arrayBufferToBase64(buffer) {
+            let binary = '';
+            const bytes = new Uint8Array(buffer);
+            const len = bytes.byteLength;
+            for (let i = 0; i < len; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return window.btoa(binary);
+        }
+
+        // Handle Create Room
+        async function handleCreateRoom() {
+            hideHomeError();
+            try {
+                const response = await fetch('/CodeShare/CreateRoom', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (!response.ok) {
+                    showHomeError("Failed to create room on server.");
+                    return;
+                }
+
+                const data = await response.json();
+                // ASP.NET JSON serialization matches your record fields
+                activeRoomInfo = {
+                    Room_id: data.room_id || data.Room_id,
+                    Password: data.password || data.Password
+                };
+
+                updateRoomHeader();
+                switchToWorkspace();
+            } catch (err) {
+                console.error("Create Room Error:", err);
+                showHomeError("Unable to connect to backend server.");
+            }
+        }
+
+        // Handle Join Room (Sends check request to GetFile to verify room existence before entering)
+        async function handleJoinRoom() {
+            hideHomeError();
+            const rId = document.getElementById('joinRoomId').value.trim();
+            const pass = document.getElementById('joinPassword').value.trim();
+
+            if (!rId || !pass) {
+                showHomeError("Please enter both Room ID and Password.");
+                return;
+            }
+
+            const candidateInfo = {
+                Room_id: parseInt(rId, 10),
+                Password: parseInt(pass, 10)
+            };
+
+            try {
+                // Verification call
+                const response = await fetch('/CodeShare/Room/GetFile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(candidateInfo)
+                });
+
+                if (!response.ok) {
+                    showHomeError("Invalid Room ID, wrong Password, or room has expired.");
+                    return;
+                }
+
+                // Room verified!
+                activeRoomInfo = candidateInfo;
+                updateRoomHeader();
+                switchToWorkspace();
+
+                // Load initial data buffer if available
+                const bytes = await response.arrayBuffer();
+                displayReceivedBytes(bytes);
+
+            } catch (err) {
+                console.error("Join Room Error:", err);
+                showHomeError("Network error while trying to reach room.");
+            }
+        }
+
+        // Handle Upload File / Send Data
+        async function handleUploadFile() {
+            if (!activeRoomInfo) return;
+
+            let fileDataBuffer;
+
+            if (sendMode === 'text') {
+                const text = document.getElementById('sendTextArea').value;
+                if (!text) {
+                    alert("Please enter text before sending.");
+                    return;
+                }
+                fileDataBuffer = new TextEncoder().encode(text).buffer;
+            } else {
+                const fileInput = document.getElementById('sendFileInput');
+                if (!fileInput.files.length) {
+                    alert("Please select a file to upload.");
+                    return;
+                }
+                fileDataBuffer = await fileInput.files[0].arrayBuffer();
+            }
+
+            // Convert raw binary buffer to Base64 string required by C# byte[] JSON parameter
+            const base64Data = arrayBufferToBase64(fileDataBuffer);
+
+            const payload = {
+                Room_info: activeRoomInfo,
+                File_data: base64Data
+            };
+
+            try {
+                const response = await fetch('/CodeShare/Room/UploadFile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    alert("Failed to send data. Room may be closed or invalid.");
+                }
+            } catch (err) {
+                console.error("Upload error:", err);
+                alert("Network error sending payload.");
+            }
+        }
+
+        // Handle Get File / Receive Data
+        async function handleGetFile() {
+            if (!activeRoomInfo) return;
+
+            const statusElem = document.getElementById('recvStatus');
+            statusElem.textContent = "Fetching...";
+
+            try {
+                const response = await fetch('/CodeShare/Room/GetFile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(activeRoomInfo)
+                });
+
+                if (!response.ok) {
+                    statusElem.textContent = "Error";
+                    alert("Room is closed or invalid.");
+                    return;
+                }
+
+                const buffer = await response.arrayBuffer();
+                statusElem.textContent = "Updated";
+                displayReceivedBytes(buffer);
+
+            } catch (err) {
+                console.error("Get file error:", err);
+                statusElem.textContent = "Failed";
+            }
+        }
+
+        // Display binary response payload (Text vs Binary Download)
+        function displayReceivedBytes(buffer) {
+            const textDisplay = document.getElementById('receivedTextDisplay');
+            const fileArea = document.getElementById('fileDownloadArea');
+            const downloadBtn = document.getElementById('downloadFileBtn');
+
+            if (buffer.byteLength === 0) {
+                textDisplay.classList.remove('hidden');
+                fileArea.classList.add('hidden');
+                textDisplay.textContent = "[Room empty - No data uploaded yet]";
+                return;
+            }
+
+            const uintArray = new Uint8Array(buffer);
+            // Quick heuristic check if data is readable UTF-8 text
+            let isText = true;
+            for (let i = 0; i < Math.min(uintArray.length, 500); i++) {
+                if (uintArray[i] === 0 || (uintArray[i] < 9 && uintArray[i] !== 10 && uintArray[i] !== 13)) {
+                    isText = false;
+                    break;
+                }
+            }
+
+            if (isText) {
+                const text = new TextDecoder("utf-8").decode(uintArray);
+                fileArea.classList.add('hidden');
+                textDisplay.classList.remove('hidden');
+                textDisplay.textContent = text;
+            } else {
+                textDisplay.classList.add('hidden');
+                fileArea.classList.remove('hidden');
+                const blob = new Blob([buffer], { type: 'application/octet-stream' });
+                downloadBtn.href = URL.createObjectURL(blob);
+            }
+        }
+
+        // Mode Switcher (Text vs File)
+        function switchSendMode(mode) {
+            sendMode = mode;
+            const textBtn = document.getElementById('modeTextBtn');
+            const fileBtn = document.getElementById('modeFileBtn');
+            const textWrap = document.getElementById('textInputWrapper');
+            const fileWrap = document.getElementById('fileInputWrapper');
+
+            if (mode === 'text') {
+                textBtn.className = "text-xs px-2.5 py-1 rounded bg-amber-600 text-white font-semibold";
+                fileBtn.className = "text-xs px-2.5 py-1 rounded bg-slate-800 text-slate-400";
+                textWrap.classList.remove('hidden');
+                fileWrap.classList.add('hidden');
+            } else {
+                fileBtn.className = "text-xs px-2.5 py-1 rounded bg-amber-600 text-white font-semibold";
+                textBtn.className = "text-xs px-2.5 py-1 rounded bg-slate-800 text-slate-400";
+                fileWrap.classList.remove('hidden');
+                textWrap.classList.add('hidden');
+            }
+        }
+
+        // UI View Transitions
+        function switchToWorkspace() {
+            document.getElementById('homeScreen').classList.add('hidden');
+            document.getElementById('workspaceScreen').classList.remove('hidden');
+            document.getElementById('roomBadge').classList.remove('hidden');
+        }
+
+        function leaveRoom() {
+            activeRoomInfo = null;
+            document.getElementById('workspaceScreen').classList.add('hidden');
+            document.getElementById('roomBadge').classList.add('hidden');
+            document.getElementById('homeScreen').classList.remove('hidden');
+            document.getElementById('receivedTextDisplay').textContent = 'No data fetched yet.';
+            document.getElementById('sendTextArea').value = '';
+        }
+
+        function updateRoomHeader() {
+            if (!activeRoomInfo) return;
+            document.getElementById('displayRoomId').textContent = activeRoomInfo.Room_id;
+            updatePasswordDisplay();
+        }
+
+        function togglePasswordVisibility() {
+            showPasswordRaw = !showPasswordRaw;
+            updatePasswordDisplay();
+        }
+
+        function updatePasswordDisplay() {
+            const passElem = document.getElementById('displayPassword');
+            const iconElem = document.getElementById('passToggleIcon');
+            if (showPasswordRaw) {
+                passElem.textContent = activeRoomInfo.Password;
+                iconElem.className = "ph ph-eye-slash";
+            } else {
+                passElem.textContent = "••••••";
+                iconElem.className = "ph ph-eye";
+            }
+        }
+
+        function copyRoomCredentials() {
+            if (!activeRoomInfo) return;
+            const textToCopy = `Room ID: ${activeRoomInfo.Room_id}\nPassword: ${activeRoomInfo.Password}`;
+            navigator.clipboard.writeText(textToCopy);
+            alert("Room Credentials copied to clipboard!");
+        }
+
+        function showHomeError(msg) {
+            const errDiv = document.getElementById('homeErrorMsg');
+            errDiv.textContent = msg;
+            errDiv.classList.remove('hidden');
+        }
+
+        function hideHomeError() {
+            document.getElementById('homeErrorMsg').classList.add('hidden');
+        }
+
+        // Draggable Resizer Logic for Split View
+        const resizer = document.getElementById('dragHandle');
+        const leftPanel = document.getElementById('leftPanel');
+        let isMdScreen = window.innerWidth >= 768;
+
+        window.addEventListener('resize', () => { isMdScreen = window.innerWidth >= 768; });
+
+        resizer.addEventListener('mousedown', (e) => {
+            if (!isMdScreen) return;
+            e.preventDefault();
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', () => {
+                document.removeEventListener('mousemove', handleMouseMove);
+            });
+        });
+
+        function handleMouseMove(e) {
+            const container = document.getElementById('workspaceScreen');
+            const containerRect = container.getBoundingClientRect();
+            const newLeftWidth = e.clientX - containerRect.left;
+            if (newLeftWidth > 200 && newLeftWidth < containerRect.width - 200) {
+                leftPanel.style.flex = `0 0 ${newLeftWidth}px`;
+            }
+        }
+    </script>
+</body>
+</html>
